@@ -111,11 +111,9 @@ def main(cfg_path):
     # ----------------------
     # 7) Load RGI & catchment
     # ----------------------
-    base_url = (
-        "https://cluster.klima.uni-bremen.de/~oggm/"
-        "gdirs/oggm_v1.6/L3-L5_files/2023.1/"
-        "elev_bands/W5E5_w_data/"
-    )
+    base_url = ('https://cluster.klima.uni-bremen.de/~oggm/'
+                'gdirs/oggm_v1.6/L3-L5_files/2025.6/elev_bands/W5E5/per_glacier_spinup')
+
     fr  = utils.get_rgi_region_file(11, version='62', reset=reset)
     gdf = gpd.read_file(fr)
 
@@ -152,7 +150,7 @@ def main(cfg_path):
     # 8) Preprocessing workflow
     # ----------------------
     elevation_band_task_list = [
-        tasks.simple_glacier_masks,
+        tasks.glacier_masks,
         tasks.elevation_band_flowline,
         tasks.fixed_dx_elevation_band_flowline,
         tasks.compute_downstream_line,
@@ -190,10 +188,9 @@ def main(cfg_path):
         gdirs,
         apply_fs_on_mismatch=True,
         error_on_mismatch=True,  # if you're running many glaciers some might not work
-        filter_inversion_output=True,  # this partly filters the over deepening due to
+        filter_inversion_output=True  # this partly filters the over deepening due to
         #    # the equilibrium assumption for retreating glaciers (see. Figure 5 of Maussion et al. 2019)
-        volume_m3_reference=None,  # here you could provide your own total volume estimate in m3
-    )
+        )
 
     # finally create the dynamic flowlines
     workflow.execute_entity_task(tasks.init_present_time_glacier, gdirs)
