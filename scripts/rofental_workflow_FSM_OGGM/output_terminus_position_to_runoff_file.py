@@ -164,33 +164,40 @@ def main(cfg_path):
 
     # Here we never need to reset the working directory since we start
     # from a working dir where simulations have been run before
-    gdirs = workflow.init_glacier_directories(selection)
+    model_gdirs = workflow.init_glacier_directories(selection)
 
-    # Let's make a directory for CEH data and file formats
-    output_dir = os.path.join(cfg.PATHS['working_dir'],
-                              'run_off_terminus_position')
+    model_workdir = cfg.PATHS['working_dir']
+    geom_workdir = os.path.join(model_workdir, "centerline_postproc")
+    utils.mkdir(geom_workdir, reset=False)
+
+    # Output stays in the MODEL workdir
+    output_dir = os.path.join(model_workdir, 'run_off_terminus_position')
     os.makedirs(output_dir, exist_ok=True)
 
     shp_path = os.path.join(output_dir, 'Rofental_Centerlines.shp')
+
     if not os.path.exists(shp_path):
-        # We recompute geometry in each glacier dir,
-        # so we can get centerlines in a shapefile
-        list_talks = [
-            tasks.glacier_masks,
-            tasks.compute_centerlines,
-        ]
-        for task in list_talks:
-            # The order matters!
-            workflow.execute_entity_task(task, gdirs)
+        old_wd = cfg.PATHS["working_dir"]
+        try:
+            # Switch OGGM to the geometry-only workdir
+            cfg.PATHS["working_dir"] = geom_workdir
 
-        # Remove from gdirs those that dont have thickness distribution due to errors
+            geom_gdirs = workflow.init_glacier_directories(selection, reset=True)
 
-        write_centerlines_to_shape(gdirs,  # The glaciers to process
-                                   path=shp_path,  # The output file
-                                   to_tar=False,  # set to True to put everything into one single tar file
-                                   to_crs=selection.crs,  # Write into the projection of the original inventory
-                                   keep_main_only=True,  # Write only the main flowline and discard the tributaries
-                                   )
+            workflow.execute_entity_task(tasks.glacier_masks, geom_gdirs)
+            workflow.execute_entity_task(tasks.compute_centerlines, geom_gdirs)
+
+            # Write shapefile from GEOMETRY gdirs, but into MODEL output dir
+            write_centerlines_to_shape(
+                geom_gdirs,
+                path=shp_path,
+                to_tar=False,
+                to_crs=selection.crs,
+                keep_main_only=True,
+            )
+
+        finally:
+            cfg.PATHS["working_dir"] = old_wd
 
         print("Shapefile written, waiting for file sync...")
         base = shp_path[:-4]
@@ -199,7 +206,7 @@ def main(cfg_path):
     # We read the data that we need
     # Shapefile with all centrelines
     print("Reading centerlines...")
-    centerlines = gpd.read_file(os.path.join(output_dir, 'Rofental_Centerlines.shp'))
+    centerlines = gpd.read_file(shp_path)
     centerlines['coords'] = centerlines.geometry.apply(lambda geom: list(geom.coords))
 
     # ----------------------
