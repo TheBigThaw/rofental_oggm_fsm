@@ -146,32 +146,10 @@ def main(cfg_path):
     else:
         gdirs = workflow.init_glacier_directories(selection)
 
-    # ----------------------
-    # 8) Preprocessing workflow
-    # ----------------------
-    elevation_band_task_list = [
-        tasks.glacier_masks,
-        tasks.elevation_band_flowline,
-        tasks.fixed_dx_elevation_band_flowline,
-        tasks.compute_downstream_line,
-        tasks.compute_downstream_bedshape,
-        tasks.gridded_attributes,
-        tasks.gridded_mb_attributes,
-    ]
-
     print('multiprocessing' + str(cfg.PARAMS['use_multiprocessing']))
-
-    #for task in elevation_band_task_list:
-    #    workflow.execute_entity_task(task, gdirs)
 
     # Distribute
     workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
-
-    # Test that we have at least 21 variables on gridded_data.nc
-    #gdir = gdirs[0]
-    #with xr.open_dataset(gdir.get_filepath('gridded_data')) as ds:
-    #    ds = ds.load()
-    #    assert len(ds.count().variables.keys()) == 21
 
     # ----------------------
     # 9) MB calibration & FSM runs
