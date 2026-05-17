@@ -252,6 +252,8 @@ def main(cfg_path):
         name='topo_smooth',
     )
 
+    topo_smooth.attrs = doggm.attrs
+
     doggm['area_mask'] = (doggm.simulated_thickness > 0)
     print('Glaciated area mask per year computed')
 
