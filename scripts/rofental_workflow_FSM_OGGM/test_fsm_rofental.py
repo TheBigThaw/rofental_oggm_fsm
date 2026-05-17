@@ -139,7 +139,7 @@ def main(cfg_path):
     if reset:
         gdirs = workflow.init_glacier_directories(
             selection,
-            from_prepro_level=3,
+            from_prepro_level=4,
             prepro_base_url=base_url,
             reset=True, force=True
         )
