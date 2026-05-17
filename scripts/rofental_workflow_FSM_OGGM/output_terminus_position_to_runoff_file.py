@@ -226,9 +226,11 @@ def main(cfg_path):
 
     matched_files = sorted(glob.glob(pattern))
 
-    topo_file_pattern = os.path.join(cfg.PATHS['working_dir'],
-                                     'distributed_data' + simulation_name,
-                                     "*topo*")
+    topo_file_pattern = os.path.join(
+        cfg.PATHS['working_dir'],
+        'distributed_data' + simulation_name,
+        '*dem*'
+    )
 
     matched_dem = sorted(glob.glob(topo_file_pattern))
 
@@ -237,8 +239,27 @@ def main(cfg_path):
     doggm = salem.open_xr_dataset(matched_files[0])
 
     # OGGM topo
-    doggm_elevation = salem.open_xr_dataset(matched_dem[0])
-    topo_smooth = doggm_elevation.topo_smoothed
+    # DEM from GeoTIFF
+    dem_tif = salem.GeoTiff(matched_dem[0])
+    topo_smooth = dem_tif.get_vardata()
+    topo_smooth = xr.DataArray(
+        topo_smooth,
+        dims=('y', 'x'),
+        coords={
+            'x': dem_tif.grid.x_coord,
+            'y': dem_tif.grid.y_coord,
+        },
+        name='topo_smooth',
+    )
+
+    # Quick grid/projection checks
+    print("doggm grid proj:", doggm.salem.grid.proj)
+    print("dem grid proj:", dem_tif.grid.proj)
+    print("same proj:", doggm.salem.grid.proj == dem_tif.grid.proj)
+
+    print("doggm nx, ny:", doggm.salem.grid.nx, doggm.salem.grid.ny)
+    print("dem   nx, ny:", dem_tif.grid.nx, dem_tif.grid.ny)
+    exit()
 
     doggm['area_mask'] = (doggm.simulated_thickness > 0)
     print('Glaciated area mask per year computed')
