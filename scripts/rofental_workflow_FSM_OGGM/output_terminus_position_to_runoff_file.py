@@ -238,24 +238,38 @@ def main(cfg_path):
     # OGGM thickness
     doggm = salem.open_xr_dataset(matched_files[0])
 
-    # OGGM topo
     # DEM from GeoTIFF
     dem_tif = salem.GeoTiff(matched_dem[0])
-    topo_smooth = dem_tif.get_vardata()
-    topo_smooth = xr.DataArray(
-        topo_smooth,
-        dims=('y', 'x'),
-        coords={
-            'x': dem_tif.grid.x_coord,
-            'y': dem_tif.grid.y_coord,
-        },
-        name='topo_smooth',
-    )
+    dem_data = dem_tif.get_vardata()
 
-    topo_smooth.attrs = doggm.attrs
+    print("doggm proj:", doggm.attrs.get("pyproj_srs"))
+    print("dem proj:", dem_tif.grid.proj)
+    print("doggm shape:", (doggm.sizes["y"], doggm.sizes["x"]))
+    print("dem shape:", dem_data.shape)
+
+    if dem_data.shape != (doggm.sizes["y"], doggm.sizes["x"]):
+        raise ValueError(
+            f"DEM shape {dem_data.shape} does not match doggm grid "
+            f"{(doggm.sizes['y'], doggm.sizes['x'])}"
+        )
+
+    # Force DEM onto doggm coordinates/grid
+    topo_smooth = xr.DataArray(
+        dem_data,
+        dims=("y", "x"),
+        coords={
+            "y": doggm["y"].values,
+            "x": doggm["x"].values,
+        },
+        name="topo_smooth",
+        attrs={
+            "pyproj_srs": doggm.attrs["pyproj_srs"],
+        },
+    )
 
     doggm['area_mask'] = (doggm.simulated_thickness > 0)
     print('Glaciated area mask per year computed')
+    exit()
 
     # Let's prepare arrays to deploy in a multiprocessing workflow per year
     years = doggm.time.values.astype(int)
