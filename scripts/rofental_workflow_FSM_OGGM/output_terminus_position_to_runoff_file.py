@@ -182,7 +182,13 @@ def main(cfg_path):
             # Switch OGGM to the geometry-only workdir
             cfg.PATHS["working_dir"] = geom_workdir
 
-            geom_gdirs = workflow.init_glacier_directories(selection, reset=True)
+            base_url_centre = ('https://cluster.klima.uni-bremen.de/~oggm/'
+                        'gdirs/oggm_v1.6/L3-L5_files/2025.6/centerlines/W5E5/per_glacier_spinup/')
+
+            geom_gdirs = workflow.init_glacier_directories(selection,
+                                                           from_prepro_level=3,
+                                                           prepro_base_url=base_url_centre,
+                                                           reset=True, force=True)
 
             workflow.execute_entity_task(tasks.glacier_masks, geom_gdirs)
             workflow.execute_entity_task(tasks.compute_centerlines, geom_gdirs)
