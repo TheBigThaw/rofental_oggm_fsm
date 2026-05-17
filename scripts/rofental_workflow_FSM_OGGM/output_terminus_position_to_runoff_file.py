@@ -269,7 +269,7 @@ def main(cfg_path):
 
     doggm['area_mask'] = (doggm.simulated_thickness > 0)
     print('Glaciated area mask per year computed')
-    exit()
+    #exit()
 
     # Let's prepare arrays to deploy in a multiprocessing workflow per year
     years = doggm.time.values.astype(int)
