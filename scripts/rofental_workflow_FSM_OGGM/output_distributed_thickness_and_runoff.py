@@ -1,3 +1,4 @@
+import cfgrib
 import os
 import sys
 import configparser
@@ -109,7 +110,7 @@ def main(cfg_path):
     distribute_2d.merge_simulated_thickness(gdirs,
                                             output_folder=path_for_distributed_data,
                                             output_filename='all_merged_for_',
-                                            add_topography=False,
+                                            add_topography='NASADEM',
                                             keep_dem_file=True,
                                             use_multiprocessing=False,
                                             save_as_multiple_files=True,

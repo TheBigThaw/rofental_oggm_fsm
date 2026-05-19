@@ -29,5 +29,5 @@ CONFIG="$SCRIPT_DIR/params.ini"
 # Now call each Python script with that one argument:
 python test_fsm_rofental.py "$CONFIG"
 python output_distributed_thickness_and_runoff.py "$CONFIG"
-#python output_terminus_position_to_runoff_file.py "$CONFIG"
+python output_terminus_position_to_runoff_file.py "$CONFIG"
 python output_area_change_shapefiles.py "$CONFIG"
