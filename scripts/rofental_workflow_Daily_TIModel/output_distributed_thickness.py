@@ -109,7 +109,7 @@ def main(cfg_path):
     distribute_2d.merge_simulated_thickness(gdirs,
                                             output_folder=path_for_distributed_data,
                                             output_filename='all_merged_for_',
-                                            add_topography='NASADEM',
+                                            add_topography=False,
                                             keep_dem_file=True,
                                             use_multiprocessing=True,
                                             simulation_filesuffix=simulation_name)
