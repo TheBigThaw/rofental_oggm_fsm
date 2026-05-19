@@ -88,7 +88,8 @@ def main(cfg_path):
         "corr": corr_param,
         "cov": cov_param,
         "eigenvalues": eival,
-        "eigenvectors": ev
+        "eigenvectors": ev,
+        "param_names": param_names
     }
     fdump = open('stats_analysis_' + str(wgms_id) + '.pkl','wb')
     pkl.dump(statsdict,fdump)
