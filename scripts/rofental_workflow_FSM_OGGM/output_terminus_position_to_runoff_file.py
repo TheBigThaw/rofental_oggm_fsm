@@ -164,33 +164,46 @@ def main(cfg_path):
 
     # Here we never need to reset the working directory since we start
     # from a working dir where simulations have been run before
-    gdirs = workflow.init_glacier_directories(selection)
+    model_gdirs = workflow.init_glacier_directories(selection)
 
-    # Let's make a directory for CEH data and file formats
-    output_dir = os.path.join(cfg.PATHS['working_dir'],
-                              'run_off_terminus_position')
+    model_workdir = cfg.PATHS['working_dir']
+    geom_workdir = os.path.join(model_workdir, "centerline_postproc")
+    utils.mkdir(geom_workdir, reset=False)
+
+    # Output stays in the MODEL workdir
+    output_dir = os.path.join(model_workdir, 'run_off_terminus_position')
     os.makedirs(output_dir, exist_ok=True)
 
     shp_path = os.path.join(output_dir, 'Rofental_Centerlines.shp')
+
     if not os.path.exists(shp_path):
-        # We recompute geometry in each glacier dir,
-        # so we can get centerlines in a shapefile
-        list_talks = [
-            tasks.glacier_masks,
-            tasks.compute_centerlines,
-        ]
-        for task in list_talks:
-            # The order matters!
-            workflow.execute_entity_task(task, gdirs)
+        old_wd = cfg.PATHS["working_dir"]
+        try:
+            # Switch OGGM to the geometry-only workdir
+            cfg.PATHS["working_dir"] = geom_workdir
 
-        # Remove from gdirs those that dont have thickness distribution due to errors
+            base_url_centre = ('https://cluster.klima.uni-bremen.de/~oggm/'
+                        'gdirs/oggm_v1.6/L3-L5_files/2025.6/centerlines/W5E5/per_glacier_spinup/')
 
-        write_centerlines_to_shape(gdirs,  # The glaciers to process
-                                   path=shp_path,  # The output file
-                                   to_tar=False,  # set to True to put everything into one single tar file
-                                   to_crs=selection.crs,  # Write into the projection of the original inventory
-                                   keep_main_only=True,  # Write only the main flowline and discard the tributaries
-                                   )
+            geom_gdirs = workflow.init_glacier_directories(selection,
+                                                           from_prepro_level=3,
+                                                           prepro_base_url=base_url_centre,
+                                                           reset=True, force=True)
+
+            workflow.execute_entity_task(tasks.glacier_masks, geom_gdirs)
+            workflow.execute_entity_task(tasks.compute_centerlines, geom_gdirs)
+
+            # Write shapefile from GEOMETRY gdirs, but into MODEL output dir
+            write_centerlines_to_shape(
+                geom_gdirs,
+                path=shp_path,
+                to_tar=False,
+                to_crs=selection.crs,
+                keep_main_only=True,
+            )
+
+        finally:
+            cfg.PATHS["working_dir"] = old_wd
 
         print("Shapefile written, waiting for file sync...")
         base = shp_path[:-4]
@@ -199,7 +212,7 @@ def main(cfg_path):
     # We read the data that we need
     # Shapefile with all centrelines
     print("Reading centerlines...")
-    centerlines = gpd.read_file(os.path.join(output_dir, 'Rofental_Centerlines.shp'))
+    centerlines = gpd.read_file(shp_path)
     centerlines['coords'] = centerlines.geometry.apply(lambda geom: list(geom.coords))
 
     # ----------------------
@@ -213,9 +226,11 @@ def main(cfg_path):
 
     matched_files = sorted(glob.glob(pattern))
 
-    topo_file_pattern = os.path.join(cfg.PATHS['working_dir'],
-                                     'distributed_data' + simulation_name,
-                                     "*topo*")
+    topo_file_pattern = os.path.join(
+        cfg.PATHS['working_dir'],
+        'distributed_data' + simulation_name,
+        '*dem*'
+    )
 
     matched_dem = sorted(glob.glob(topo_file_pattern))
 
@@ -223,12 +238,38 @@ def main(cfg_path):
     # OGGM thickness
     doggm = salem.open_xr_dataset(matched_files[0])
 
-    # OGGM topo
-    doggm_elevation = salem.open_xr_dataset(matched_dem[0])
-    topo_smooth = doggm_elevation.topo_smoothed
+    # DEM from GeoTIFF
+    dem_tif = salem.GeoTiff(matched_dem[0])
+    dem_data = dem_tif.get_vardata()
+
+    print("doggm proj:", doggm.attrs.get("pyproj_srs"))
+    print("dem proj:", dem_tif.grid.proj)
+    print("doggm shape:", (doggm.sizes["y"], doggm.sizes["x"]))
+    print("dem shape:", dem_data.shape)
+
+    if dem_data.shape != (doggm.sizes["y"], doggm.sizes["x"]):
+        raise ValueError(
+            f"DEM shape {dem_data.shape} does not match doggm grid "
+            f"{(doggm.sizes['y'], doggm.sizes['x'])}"
+        )
+
+    # Force DEM onto doggm coordinates/grid
+    topo_smooth = xr.DataArray(
+        dem_data,
+        dims=("y", "x"),
+        coords={
+            "y": doggm["y"].values,
+            "x": doggm["x"].values,
+        },
+        name="topo_smooth",
+        attrs={
+            "pyproj_srs": doggm.attrs["pyproj_srs"],
+        },
+    )
 
     doggm['area_mask'] = (doggm.simulated_thickness > 0)
     print('Glaciated area mask per year computed')
+    #exit()
 
     # Let's prepare arrays to deploy in a multiprocessing workflow per year
     years = doggm.time.values.astype(int)
