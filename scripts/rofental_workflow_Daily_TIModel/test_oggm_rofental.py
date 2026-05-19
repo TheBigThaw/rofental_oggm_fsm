@@ -536,12 +536,14 @@ def main(cfg_path):
     # ----------------------
     # 7) Load RGI & catchment
     # ----------------------
-    base_url = (
-        "https://cluster.klima.uni-bremen.de/~oggm/"
-        "gdirs/oggm_v1.6/L3-L5_files/2023.1/"
-        "elev_bands/W5E5_w_data/"
-    )
-    fr  = utils.get_rgi_region_file(11, version='62', reset=reset)
+    #base_url = (
+    #    "https://cluster.klima.uni-bremen.de/~oggm/"
+    #    "gdirs/oggm_v1.6/L3-L5_files/2023.1/"
+    #    "elev_bands/W5E5_w_data/"
+    #)
+    base_url = ('https://cluster.klima.uni-bremen.de/~oggm/'
+                'gdirs/oggm_v1.6/L3-L5_files/2025.6/elev_bands/W5E5/per_glacier_spinup')
+    fr  = utils.get_rgi_region_file(11, version='62', reset=False)
     gdf = gpd.read_file(fr)
 
     rof_shp = gpd.read_file(catchment_path)
@@ -583,7 +585,7 @@ def main(cfg_path):
     if reset:
         gdirs = workflow.init_glacier_directories(
             selection,
-            from_prepro_level=3,
+            from_prepro_level=4,
             prepro_base_url=base_url,
             reset=True, force=True
         )
@@ -596,27 +598,27 @@ def main(cfg_path):
     # ----------------------
     # 8) Preprocessing workflow
     # ----------------------
-    elevation_band_task_list = [
-        tasks.simple_glacier_masks,
-        tasks.elevation_band_flowline,
-        tasks.fixed_dx_elevation_band_flowline,
-        tasks.compute_downstream_line,
-        tasks.compute_downstream_bedshape,
-        tasks.gridded_attributes,
-        tasks.gridded_mb_attributes,
-    ]
-    for task in elevation_band_task_list:
-        workflow.execute_entity_task(task, gdirs)
+    #elevation_band_task_list = [
+    #    tasks.simple_glacier_masks,
+    #    tasks.elevation_band_flowline,
+    #    tasks.fixed_dx_elevation_band_flowline,
+    #    tasks.compute_downstream_line,
+    #    tasks.compute_downstream_bedshape,
+    #    tasks.gridded_attributes,
+    #    tasks.gridded_mb_attributes,
+    #]
+    #for task in elevation_band_task_list:
+    #    workflow.execute_entity_task(task, gdirs)
 
     # Distribute
     workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
 
     # TODO: this needs to be remove if we dont do elevation_band_task_list
     # Test that we have at least 21 variables on gridded_data.nc
-    gdir = gdirs[0]
-    with xr.open_dataset(gdir.get_filepath('gridded_data')) as ds:
-        ds = ds.load()
-        assert len(ds.count().variables.keys()) == 21
+    #gdir = gdirs[0]
+    #with xr.open_dataset(gdir.get_filepath('gridded_data')) as ds:
+    #    ds = ds.load()
+    #    assert len(ds.count().variables.keys()) == 21
 
     # ----------------------
     # 9) MB runs
