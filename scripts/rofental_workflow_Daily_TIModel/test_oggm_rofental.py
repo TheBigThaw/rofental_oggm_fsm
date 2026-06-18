@@ -554,6 +554,9 @@ def main(cfg_path):
     # Grab the raw string (or None if the key is missing)
     rgi_id = inp_config.get('glacier_rgi_id', fallback=None)
 
+    # This gives the option to run all glaciers with the same melt params as the 'source'
+    rgi_meltparm_src = inp_config.get('glacier_rgi_id_melt_param_src', fallback=None)
+
     # If the user literally wrote “None”, turn that into a Python None
     if rgi_id == 'None':
         rgi_id = None
@@ -657,6 +660,20 @@ def main(cfg_path):
                 mb_model_class=MBModel,
                 filename=climate_filename
             )
+
+
+    if rgi_meltparm_src is not None:
+        for gdir in gdirs:
+            if rgi_meltparm_src.strip()==gdir.rgi_id:
+                prcp_fac_src = gdir.settings['prcp_fac']
+                melt_f_src = gdir.settings['melt_f']
+                temp_bias_src = gdir.settings['temp_bias']
+
+        for gdir in gdirs:
+            if rgi_meltparm_src.strip()!=gdir.rgi_id:
+                gdir.settings['prcp_fac'] = prcp_fac_src
+                gdir.settings['melt_f'] = melt_f_src
+                gdir.settings['temp_bias'] = temp_bias_src
 
     # compute apparent MB
     workflow.execute_entity_task(tasks.apparent_mb_from_any_mb,
