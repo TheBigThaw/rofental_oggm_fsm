@@ -12,6 +12,10 @@ import pickle as pkl
 
 def main(cfg_path):
 
+    # ----------------------
+    # 1) Read configuration file
+    # ----------------------
+
     cp = configparser.ConfigParser()
     # option needed for case sensitivity
     cp.optionxform = str
@@ -19,52 +23,42 @@ def main(cfg_path):
 
     inp_config  = cp['InputData']
     
-    wgms_to_rgi_path = inp_config.get('wgms_to_rgi_path',fallback=None)
     wgms_id = inp_config.getint('glacier_wgms_id',fallback=None)
-    parameter_sample_file_base = inp_config.get('parameter_sample_file_base',fallback=None)
 
+    # a path to the wgms to rgi mapping available from the oggm-sample-data repo
+    wgms_to_rgi_path = cfg_get(inp_config,'wgms_to_rgi_path',fallback=None)
+    # base name of the csv file that contains param samples and costs
+    parameter_sample_file_base = cfg_get(inp_config,'parameter_sample_file_base',fallback=None)
+
+    # scalings of variances of individual variables in cost (mass balance, winter MB, and profile)
     costwgt_str = inp_config.get('cost_variance_expansion',fallback='[1,1,1]')
     cost_wgts = np.array(json.loads(costwgt_str))
 
+    # identify RGI ID from wgms ID to read sampling cost
     dfwr = pd.read_csv(wgms_to_rgi_path)
     rgi_id = dfwr[dfwr.WGMS_ID == wgms_id].RGI60_ID.tolist()[0]
     analysis_csv = parameter_sample_file_base + '_' + rgi_id + '.csv'
-    
+   
+
+    # ----------------------
+    # 2) read sample costs from generated csv 
+    # ----------------------
+
     dfsample = pd.read_csv(analysis_csv,index_col=0)
     arr = dfsample.to_numpy()
     sample_arr = arr[:,:-3]
     results_arr = arr[:,-3:]
     param_names = dfsample.keys()[:-3]
     n_params = len(param_names)
+
     cost = np.sqrt(np.nansum((1/cost_wgts[None,:]**2) * results_arr**2,1)[:,None])
     
-    with open("params_dan.ini", "r") as f:
-        lines = f.readlines()
-    with open("params_dan_" + str(wgms_id) + ".ini", "w") as f:
-        for line in lines:
-            line = re.sub(r'^.*glacier_wgms_id.*$', 'glacier_wgms_id = ' + str(wgms_id) + '\n', line)
-            f.write(line)
-    
-    with open("params_dan.ini", "r") as f:
-        lines = f.readlines()        
-    with open("params_dan_" + str(wgms_id) + ".ini", "w") as f:
-        for line in lines:            
-            line = re.sub(r'^.*one_off_sample.*$', 'one_off_sample = -1\n', line)
-            f.write(line)
-    
-    with open("params_dan.ini", "r") as f:
-        lines = f.readlines()
-    with open("params_dan_" + str(wgms_id) + ".ini", "w") as f:          
-        for line in lines:     
-            line = re.sub(r'^.*overwrite_sample_file.*$', 'overwrite_sample_file = False\n', line)
-            f.write(line)
+   
+    # ----------------------
+    # 3) Calculate pseudo-probability distribution, with mean, covariance, and correlation of parameters, 
+    # ----------------------
 
-    stdout_file = open('stdout_' + str(wgms_id), 'w')
-    stderr_file = open('stderr_' + str(wgms_id), 'w')
-    proc = subprocess.Popen(["python", "fsm_sample_params.py", cfg_path], \
-                stdout=stdout_file, stderr=stderr_file)
-    
-    prob = np.exp(-.5*cost**2)/np.sum(np.exp(-.5*cost**2));  # use a gaussian probability -- not sure what else to do
+    prob = np.exp(-.5*cost**2)/np.sum(np.exp(-.5*cost**2));  # use a gaussian distribution
 
     probTensor = prob[:,:,None]
     
@@ -73,11 +67,14 @@ def main(cfg_path):
     mean_param = np.sum(prob * sample_arr,0)
     cov_param = np.sum((sample_arr-mean_param)[:,:,None]*(sample_arr-mean_param)[:,None,:]*probTensor,0)
     
-    
     sds = np.sqrt(cov_param.diagonal())
     
     sds_outer = sds[:,None]*sds[:,None].T
     corr_param = cov_param / sds_outer
+
+    # ----------------------
+    # 4) Eigendecomposition of covariance matrix, and save stats to file
+    # ----------------------
     
     eival, ev = np.linalg.eig(cov_param)
     sort_ind = np.argsort(eival)[::-1]
@@ -94,6 +91,10 @@ def main(cfg_path):
     fdump = open('stats_analysis_' + str(wgms_id) + '.pkl','wb')
     pkl.dump(statsdict,fdump)
     fdump.close()
+
+    # ----------------------
+    # 5) Create pair plot of distributions with marginal distributions on diagonal
+    # ----------------------
     
     fig, axes = plt.subplots(n_params, n_params, figsize=(14, 14))
     
@@ -157,10 +158,10 @@ def main(cfg_path):
             else:
                 ax.set_yticks([])
     plt.savefig('pair_plot_' + str(wgms_id) + '.png')
-    proc.wait()
-    stdout_file.close()
-    stderr_file.close()
 
+    # ----------------------
+    # 6) Create new config file from original, but with optimal mean values for sampled parameters
+    # ----------------------
 
     original_file = cfg_path
     strs = cfg_path.split('.')
