@@ -136,7 +136,7 @@ Whenever the set of list-valued parameters changes, regenerate the parameter sam
 | `y0`, `y1` *(confirmed)* | Start and end year of the simulation period. |
 | `num_samples` *(role confirmed)* | Size of the parameter ensemble. Only meaningful if at least one `fsm_param_*` is set to a list. Larger values improve robustness at a roughly proportional (or greater, under Saltelli-style designs) cost in runtime. |
 | `calibrate_to_mean` *(inferred)* | Likely toggles whether calibration targets the long-term mean of observations over `years_cost` (`True`) or individual annual values (`False`). |
-| `one_off_sample` *(inferred)* | Likely selects a single ensemble member by index to run instead of the full ensemble, useful for debugging. `-2` likely means "run the full ensemble" rather than a valid index. Which physical parameters a given index represents depends on which `fsm_param_*` entries were lists when the sample file was built. |
+| `one_off_sample` | Selects a single ensemble member by index to run instead of the full ensemble, useful for debugging. As long as this is not `None`, an ensemble will not be run. A positive integer `i` will evaluate cost for the `i`th row of the sample .csv file (there is no check that `i` corresponds to an existing row). A value of `-1` will evaluate the cost corresponding to the ensemble member with lowest cost. A value of `-2` will evaluate cost for the FSM parameter values specified in the parameter file. For sampled parameters, the first value specified in the parameter range given is used. |
 | `years_cost` *(confirmed)* | List of years whose observations are used in the calibration cost function. |
 | `glacier_wgms_id` *(confirmed)* | WGMS identifier of the specific glacier being modelled. |
 
