@@ -43,6 +43,10 @@ def get_WGMS_data(path, years, glac_id, get_mb=True, get_winter_mb=True, get_pro
     ----------
     path: 	path to WGMS FoG data folder containing csv files.
     years:	the years for which CF will be evaluated.
+            WGMS uses hydrological years. The convention used is that the YEAR corresponds
+            to the year of the WGMS start end date. In OGGM, this will always be 
+            1 oct of YEAR-1 to 30 sept of YEAR
+            Also in OGGM, wmb will be 1 oct to 30 Apr of YEAR.
     glac_id:    the wgms ID
     get_mb, get_winter_mb, get_profile: flags to return different meas types
 
@@ -55,14 +59,15 @@ def get_WGMS_data(path, years, glac_id, get_mb=True, get_winter_mb=True, get_pro
         
         df = pd.read_csv (path + '/mass_balance.csv')
         df = df[df.glacier_id==glac_id]
-        df = df[df.year.isin(years)]
-        bal = df['annual_balance'].values # mwe
-        bal_unc = df['annual_balance_unc'].values # mwe
-        winter_bal = df['winter_balance'].values # mwe
-        winter_bal_unc = df['winter_balance_unc'].values # mwe
+        df = df[pd.to_datetime(df.end_date,dayfirst=False).dt.year.isin(years)]
+        bal = df['annual_balance'].values.copy() # mwe
+        bal_unc = df['annual_balance_unc'].values.copy() # mwe
+        winter_bal = df['winter_balance'].values.copy() # mwe
+        winter_bal_unc = df['winter_balance_unc'].values.copy() # mwe
 
         # there might be empty uncertainties. Since may unc's are 0.1 mwe, 
         # we will use this so we don't discount years with data
+
         bal_unc[np.isnan(bal_unc)] = 0.1
         winter_bal_unc[np.isnan(winter_bal_unc)] = 0.1
 
@@ -74,8 +79,8 @@ def get_WGMS_data(path, years, glac_id, get_mb=True, get_winter_mb=True, get_pro
         max_lower = 0
         min_upper = 1e5
         for i in range(len(years)):
-            lower_band = np.sort(df[df.year==years[i]]['lower_elevation'].values)
-            upper_band = np.sort(df[df.year==years[i]]['upper_elevation'].values)
+            lower_band = np.sort(df[df.year==years[i]]['lower_elevation'].values.copy())
+            upper_band = np.sort(df[df.year==years[i]]['upper_elevation'].values.copy())
             max_lower = max(min(lower_band),max_lower)
             min_upper = min(max(lower_band),min_upper)
         ind_retain = (lower_band>=max_lower) & (lower_band<=min_upper)
@@ -149,16 +154,23 @@ def get_cost(mb_output, mb_output_years, wgms_data, areas, elevs, \
     mb_misfit = None
     winter_mb_misfit = None
 
+
     if make_plots:
         import matplotlib.pyplot as plt
         f, axs = plt.subplots(1, 3, figsize=(12, 4))
 
     mb_output_mon = np.repeat(mb_output_years,12)
 
-    inds = np.isin(mb_output_mon,wgms_data['mb_years'])
+    #inds = np.isin(mb_output_mon,wgms_data['mb_years'])
+
+    # easiest way to list from previous october through to september of last year
+    # this is used for the MB profile, and for annual MB
+    # Winter MB done differently
+    inds = np.arange(len(mb_output_mon))[9:-3]
+
 
     if profile_cost:
-	
+
     	# take average over all mb_output
         mb_profile = np.mean(mb_output[inds,:],0)
 	    # convert from m/s to mwe per year
@@ -175,6 +187,7 @@ def get_cost(mb_output, mb_output_years, wgms_data, areas, elevs, \
             axs[0].legend()
 
     if mb_cost:
+
 
         mb_annual = (mb_output[inds,:]).reshape(-1,12,mb_output.shape[1]).mean(axis=1) # result is in m/s
         mb_series = np.matmul(mb_annual, areas) # result is m3/s
@@ -197,6 +210,7 @@ def get_cost(mb_output, mb_output_years, wgms_data, areas, elevs, \
     if winter_mb_cost:
 
         mb_winter = None
+        # easiest way to count from october to april for each year
         for i in range(1,len(mb_output_years)):
 
             indwin = np.array([-3,-2,-1,0,1,2,3])+12*i
